@@ -2,14 +2,21 @@ let time = 0;
 let wave = [];
 let MAX_POINTS = 1200;
 
+let input;
+
 function setup() {
   createCanvas(1500, 700);
+  input = createInput();
+  input.attribute('type', 'number');
+  input.attribute('min', '1');
+  input.attribute('max', '30');
+  input.value('1');
 }
 
 function draw() {
 
   let radCircle = 100;
-  // let radDot = 10;
+  let radDot = 3;
 
   background(0);
   strokeWeight(3);
@@ -21,7 +28,7 @@ function draw() {
   let x = 0;
   let y = 0;
 
-  for (let i = 0; i < 20; i += 1) {
+  for (let i = 0; i < input.value(); i += 1) {
 
     let n = i * 2 + 1;
     let prevx = x;
@@ -39,7 +46,7 @@ function draw() {
     stroke(255);
     // fill(255);
     line(prevx, prevy, x, y);
-    // ellipse(x, y, radDot);
+    ellipse(x, y, radDot);
 
   }
 
