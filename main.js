@@ -2,15 +2,13 @@ let time = 0;
 let wave = [];
 let MAX_POINTS = 1200;
 
-let input;
+let slider;
 
 function setup() {
   createCanvas(1500, 700);
-  input = createInput();
-  input.attribute('type', 'number');
-  input.attribute('min', '1');
-  input.attribute('max', '30');
-  input.value('1');
+  slider = createSlider(1, 30, 1, 1);
+  slider.value('1');
+
 }
 
 function draw() {
@@ -28,7 +26,7 @@ function draw() {
   let x = 0;
   let y = 0;
 
-  for (let i = 0; i < input.value(); i += 1) {
+  for (let i = 0; i < slider.value(); i += 1) {
 
     let n = i * 2 + 1;
     let prevx = x;
