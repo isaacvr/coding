@@ -32,7 +32,7 @@ function draw() {
     let prevx = x;
     let prevy = y;
 
-    let rad = radCircle * 4  / (n * PI);
+    let rad = radCircle * 2 * ( (-1) ** n ) / n;
 
     noFill();
     stroke(255, 100);
