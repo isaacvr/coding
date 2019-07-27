@@ -1,19 +1,18 @@
 let time = 0;
 let wave = [];
-let MAX_POINTS = 1200;
+let MAX_POINTS = 1000;
 
 let slider;
 
 function setup() {
   createCanvas(1500, 700);
-  slider = createSlider(1, 30, 1, 1);
+  slider = createSlider(1, 1000, 1, 1);
   slider.value('1');
-
 }
 
 function draw() {
 
-  let radCircle = 100;
+  let radCircle = 50;
   let radDot = 3;
 
   background(0);
@@ -23,35 +22,42 @@ function draw() {
   stroke(255);
   noFill();
 
-  let x = 0;
-  let y = 0;
+  let sum = new Complex({ re: 0, im: 0 });
 
-  for (let i = 0; i < slider.value(); i += 1) {
+  for (let i = 1; i <= slider.value(); i += 1) {
 
-    let n = i * 2 + 1;
-    let prevx = x;
-    let prevy = y;
+    let n = i;
+    // let n = i * 2 + 1;
+    // let n = i;
+    let prevSum = sum;
 
-    let rad = radCircle * 4  / (n * PI);
+    // let rad = radCircle * 2 * ( (-1) ** (n + 1) ) / n ;
+    // let rad = radCircle * 4 / n;
+    let rad = radCircle * 4 / n;
 
     noFill();
     stroke(255, 100);
-    ellipse(prevx, prevy, rad * 2);
+    ellipse(prevSum.re, prevSum.im, rad * 2);
 
-    x += rad * cos(n * time);
-    y += rad * sin(n * time);
+    let temp = new Complex({
+      arg: n * time,
+      abs: rad
+    });
+
+    sum = sum.add( temp );
 
     stroke(255);
     // fill(255);
-    line(prevx, prevy, x, y);
-    ellipse(x, y, radDot);
+    line(prevSum.re, prevSum.im, sum.re, sum.im);
+    ellipse(sum.re, sum.im, radDot);
 
   }
 
-  wave.unshift(y);
+  wave.unshift(sum.im);
 
-  translate(300, 0);
-  line(x - 300, y, 0, wave[0]);
+  let diff = 600;
+  translate(diff, 0);
+  line(sum.re - diff, sum.im, 0, wave[0]);
 
   beginShape();
 
@@ -59,12 +65,12 @@ function draw() {
   stroke( color(34, 99, 237) );
 
   for (let i = 0, maxi = wave.length; i < maxi; i += 1) {
-    vertex(i, wave[i]);
+    vertex(i * 2, wave[i]);
   }
 
   endShape();
 
-  translate(-300, 0);
+  translate(-diff, 0);
 
   time += 0.03;
 

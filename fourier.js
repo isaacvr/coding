@@ -1,55 +1,3 @@
-class Complex {
-  constructor(a, b) {
-
-    if ( typeof a === 'object' ) {
-      if ( a.hasOwnProperty('arg') ) {
-        // console.log('A = ', a, 'B = ', b);
-        this.re = Math.cos(a.arg) * a.abs;
-        this.im = Math.sin(a.arg) * a.abs;
-      } else {
-        this.re = a.re;
-        this.im = a.im;
-      }
-    } else {
-      this.re = a;
-      this.im = b;
-    }
-  }
-
-  mult(c) {
-    let re = this.re * c.re - this.im * c.im;
-    let im = this.re * c.im + this.im * c.re;
-    return new Complex(re, im);
-  }
-
-  multC(c) {
-    return new Complex(this.re * c, this.im * c);
-  }
-
-  divC(c) {
-    return new Complex(this.re / c, this.im / c);
-  }
-
-  add(c) {
-    return new Complex(this.re + c.re, this.im + c.im);
-  }
-
-  length() {
-    return sqrt(this.re ** 2 + this.im ** 2);
-  }
-
-  unit() {
-    let len = this.length();
-    return new Complex(this.re / len, this.im / len);
-  }
-
-  normalize() {
-    let len = this.length();
-    this.re /= len;
-    this.im /= len;
-  }
-}
-
 let time = 0;
 let wave = [];
 const MAX_POINTS = 1200;
@@ -135,7 +83,7 @@ function fourier(fn, x1, x2, stepX, fra, frb, stepF) {
     // console.log('MASS: ', mass, ' CANT: ', cant);
     // console.log('CP: ', cp);
 
-    mass = mass.divC(cant);
+    mass = mass.div(cant);
 
     sm.push(__aux);
     ms.push(mass);
