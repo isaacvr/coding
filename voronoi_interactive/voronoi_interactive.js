@@ -3,14 +3,15 @@ document.title = 'Interactive Voronoi';
 const WIDTH = 1500;
 const HEIGHT = 700;
 
-const FRAMES = 60;
+const FRAMES = 30;
 
-const SAMPLES = 20;
+const SAMPLES = 100;
 
 const EPS = 1e-4;
 
 let points = [];
 let regions = [];
+let ngb = [];
 
 let lastX = -100000;
 let lastY = -100000;
@@ -139,6 +140,23 @@ function intersect(pt1, pt2, region) {
 
 }
 
+function distance(pt1, pt2) {
+  return pt2.sub(pt1).abs();
+}
+
+function haveIntersection(pt1, pt2, reg2) {
+  let mid = pt1.add( pt2.sub(pt1).div(2) );
+  let v1 = pt2.sub(pt1).mul( new Complex(0, 1) );
+
+  for (let i = 0, maxi = reg2.length; i < maxi; i += 1) {
+    if ( toLeft(v1, reg2[i].sub(mid)) ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function voronoi() {
 
   regions.length = 0;
@@ -146,19 +164,86 @@ function voronoi() {
     new Complex( -10, -10 ),
     new Complex( -10, HEIGHT + 10 ),
     new Complex( WIDTH + 10, HEIGHT + 10 ),
-    new Complex( WIDTH + 10, -10 )
+    new Complex( WIDTH + 10, -10 ),
   ]);
 
+  ngb.length = 0;
+  ngb.push([]);
+
   for ( let i = 1; i < SAMPLES; i += 1 ) {
+    ngb[i] = [];
+
     let pts = [];
+    let closest = 0;
+    let d = distance(points[i], points[0]);
+
     for (let j = 0; j < i; j += 1) {
-      let poly = intersect( points[i], points[j], regions[j] );
-      if ( poly.length > 0 ) {
-        pts = pts.concat(poly);
+      let d1 = distance(points[i], points[j]);
+      if ( d1 < d ) {
+        d = d1;
+        closest = j;
       }
     }
 
+    let q = [ closest ];
+    let q1 = [];
+    let mark = [];
+
+    while( q.length > 0 ) {
+
+      let pt = q.shift();
+
+      // console.log('INSERTING %d      PT: %d', i, pt);
+
+      if (!mark[pt]) {
+        if ( haveIntersection(points[i], points[pt], regions[pt]) ) {
+          // console.log('HAVE INTERSECTION');
+          q1.push(pt);
+          let poly = intersect(points[i], points[pt], regions[pt]);
+          pts = pts.concat(poly);
+          ngb[i].push(pt);
+          for (let i = ngb[pt].length - 1; i >= 0; i -= 1) {
+            q.push( ngb[pt][i] );
+          }
+          ngb[pt].push(i);
+        } else {
+          // console.log('DONT HAVE INTERSECTION');
+        }
+
+        mark[pt] = true;
+      }
+
+    }
+
+    q1.length = 0;
+
+    while( q1.length > 0 ) {
+
+      let pt = q1.shift();
+
+      for(let i = ngb[pt].length - 1; i >= 0; i -= 1) {
+        let region = regions[ ngb[pt][i] ];
+        let d = Infinity;
+        let p = region.length - 1;
+        for (let j = p; j >= 0; j -= 1) {
+          let d1 = distance(points[pt], region[j]);
+          if ( d1 < d ) {
+            d = d1;
+            p = j;
+          }
+        }
+
+        if ( Math.abs(d - distance(points[p], points[ ngb[pt][i] ])) > 1e-4 ) {
+          let idx = ngb[ ngb[pt][i] ].indexOf(pt);
+          ngb[ ngb[pt][i] ].splice(idx, 1);
+          ngb[pt].splice(i, 1);
+        }
+      }
+
+    }
+
     regions[i] = convex_hull(pts);
+
   }
 
 }
@@ -182,13 +267,12 @@ function setup() {
 
   for (let i = 0; i < SAMPLES; i += 1) {
     points.push( generatePoint() );
+    ngb.push([]);
   }
 
-  // imagen = createImage(WIDTH, HEIGHT);
-
-  // console.time('voronoi');
-  // voronoi();
-  // console.timeEnd('voronoi');
+  console.time('voronoi');
+  voronoi();
+  console.timeEnd('voronoi');
 
 }
 
@@ -214,12 +298,8 @@ function draw() {
   for (let i = 0; i < SAMPLES; i += 1) {
     beginShape();
     fill( points[i].color );
-    for (let j = 0, k = 1, maxj = regions[i].length; j < maxj; j += 1) {
+    for (let j = 0, maxj = regions[i].length; j < maxj; j += 1) {
       vertex(regions[i][j].re, regions[i][j].im);
-      k += 1;
-      if ( k >= maxj ) {
-        k = 0;
-      }
     }
     endShape();
   }

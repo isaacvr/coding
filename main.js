@@ -12,7 +12,7 @@ function setup() {
 
 function draw() {
 
-  let radCircle = 50;
+  let radCircle = 30;
   let radDot = 3;
 
   background(0);

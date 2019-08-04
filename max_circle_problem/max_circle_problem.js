@@ -1,6 +1,6 @@
-document.title = 'Voronoi Diagram';
+document.title = 'Maximun Circle Problem';
 
-const FRAMES = 5;
+const FRAMES = 1;
 
 const WIDTH = 1500;
 const HEIGHT = 700;
@@ -10,18 +10,18 @@ const CENTER_Y = HEIGHT >> 1;
 
 const UNIT = 20;
 
-const SAMPLES = 50;
+const SAMPLES = 5;
 
 const EPS = 1e-4;
 
 let points = [];
 let regions = [];
 let ngb = [];
-let animations = [];
-let hull = [];
 
-function generatePoint() {
-  return new Complex( random(-35, 35), random(-15, 15) );
+function generatePoint(id) {
+  let cp = new Complex( random(-35, 35), random(-15, 15) );
+  cp.id = id;
+  return cp;
 }
 
 function cross(v1, v2) {
@@ -42,6 +42,19 @@ function notToLeft(v1, v2) {
 
 function notToRight(v1, v2) {
   return cross(v1, v2) >= -EPS;
+}
+
+function lineIntersection(pt1, pt2, PT1, PT2) {
+  let v1 = pt2.sub(pt1);
+  let v2 = PT2.sub(PT1);
+
+  let D = v2.re * v1.im - v1.re * v2.im;
+  let D1 = v2.re * ( PT1.im - pt1.im ) - ( PT1.re - pt1.re ) * v2.im;
+
+  let t1 = D1 / D;
+
+  return pt1.add( v1.mul(t1) );
+
 }
 
 function convex_hull(pts) {
@@ -81,16 +94,33 @@ function convex_hull(pts) {
 
 }
 
-function lineIntersection(pt1, pt2, PT1, PT2) {
-  let v1 = pt2.sub(pt1);
-  let v2 = PT2.sub(PT1);
+function cCenter(pt1, pt2, pt3) {
 
-  let D = v2.re * v1.im - v1.re * v2.im;
-  let D1 = v2.re * ( PT1.im - pt1.im ) - ( PT1.re - pt1.re ) * v2.im;
+  let rotor = new Complex(0, 1);
+  let v1 = pt2.sub(pt1).mul(rotor);
+  let v2 = pt3.sub(pt1).mul(rotor);
+  let mid1 = pt1.add( pt2.sub(pt1).div(2) );
+  let mid2 = pt1.add( pt3.sub(pt1).div(2) );
 
-  let t1 = D1 / D;
+  let A = v2.re * v1.im - v2.im * v1.re;
+  let x1 = (mid2.re - mid1.re) * (-v2.im) + (mid2.im - mid1.im) * v2.re;
 
-  return pt1.add( v1.mul(t1) );
+  let f1 = x1 / A;
+
+  return mid1.add(v1.mul(f1));
+
+}
+
+function distance(pt1, pt2) {
+  return pt2.sub(pt1).abs();
+}
+
+function isDelaunay(A, B, C, p) {
+
+  let center = cCenter(A, B, C);
+  let d = distance(center, A);
+
+  return distance(p, center) >= d;
 
 }
 
@@ -105,8 +135,6 @@ function intersect(pt1, pt2, region) {
 
   let toDelete = [];
   let toAdd = [];
-
-  // animations.push([ 'fuzzyline', mid.add(vec.mul(100)), mid.add(vec.mul(-100)) ]);
 
   for (let i = 0, j = 1; i < cant; i += 1) {
 
@@ -128,11 +156,6 @@ function intersect(pt1, pt2, region) {
     if ( j >= cant ) {
       j = 0;
     }
-  }
-
-  if ( toAdd.length > 1 ) {
-    // animations.push([ 'fuzzyline', mid.add(vec.mul(100)), mid.add(vec.mul(-100)) ]);
-    // animations.push([ 'line', toAdd[0], toAdd[1] ]);
   }
 
   while( toDelete.length > 0 ) {
@@ -187,11 +210,7 @@ function voronoi() {
   ngb.length = 0;
   ngb.push([]);
 
-  animations.push([ 'setRegion', 0, [].concat(regions[0]) ]);
-  animations.push([ 'addPoint', points[0] ]);
-
   for ( let i = 1; i < SAMPLES; i += 1 ) {
-    animations.push([ 'addPoint', points[i] ]);
     ngb[i] = [];
 
     let pts = [];
@@ -214,22 +233,15 @@ function voronoi() {
 
       let pt = q.shift();
 
-      // console.log('INSERTING %d      PT: %d', i, pt);
-
       if (!mark[pt]) {
         if ( haveIntersection(points[i], points[pt], regions[pt]) ) {
-          // console.log('HAVE INTERSECTION');
           q1.push(pt);
           let poly = intersect(points[i], points[pt], regions[pt]);
           pts = pts.concat(poly);
-          animations.push(["poly", [].concat(poly)]);
-          animations.push(["setRegion", pt, [].concat(regions[pt])]);
           ngb[i].push(pt);
           for (let i = ngb[pt].length - 1; i >= 0; i -= 1) {
             q.push( ngb[pt][i] );
           }
-        } else {
-          // console.log('DONT HAVE INTERSECTION');
         }
 
         mark[pt] = true;
@@ -268,13 +280,8 @@ function voronoi() {
 
     }
 
-    // console.log('PTS: ', pts);
-
     regions[i] = convex_hull(pts);
-    animations.push([ 'setRegion', i, [].concat(regions[i]) ]);
   }
-
-  // animations.length = 1;
 
 }
 
@@ -284,25 +291,18 @@ function setup() {
   frameRate(FRAMES);
 
   for (let i = 0; i < SAMPLES; i += 1) {
-    points.push( generatePoint() );
-    ngb.push([]);
+    points.push( generatePoint(i) );
   }
+
+  hull = convex_hull(points);
 
   voronoi();
 
-  // console.log('REGIONS', regions);
-
-  hull = convex_hull([].concat(points));
-
-  // console.log('HULL', convex_hull([].concat(points)));
-
-  // console.log(triangles);
-
 }
 
-function drawPoint(cp, col, r) {
+function drawPoint(cp, col) {
   stroke(col || 255);
-  strokeWeight(r || 10);
+  strokeWeight(10);
   point(cp.re * UNIT, -cp.im * UNIT);
 }
 
@@ -318,23 +318,11 @@ function drawTriangle(cp1, cp2, cp3, col) {
   drawLine(cp2, cp3, col);
 }
 
-function drawPath(path, col) {
-  let cant = path.length;
-
-  let lineCol = col || 255;
-
-  for (let i = 0, j = 1; i < cant; i += 1) {
-    drawLine( path[i], path[j], lineCol );
-    j += 1;
-    if ( j === cant ) {
-      j = 0;
-    }
-  }
-
-  // for (let i = 0; i < cant; i += 1) {
-  //   // drawPoint(path[i], color(255, 45, 45) );
-  //   drawPoint(path[i], lineCol );
-  // }
+function drawEllipse(center, diam, col) {
+  stroke(col || 255);
+  noFill();
+  strokeWeight(3);
+  ellipse(center.re * UNIT, -center.im * UNIT, diam * UNIT);
 }
 
 function drawAxes() {
@@ -344,16 +332,7 @@ function drawAxes() {
   line(CENTER_X, 0, CENTER_X, HEIGHT);
 }
 
-let ini = 0, fin = ini + 1;
-
-let lines = [];
-
-function drawTriangle1(tr, col) {
-  drawTriangle(tr[0], tr[1], tr[2], col);
-}
-
-let animRegions = [];
-let animPoints = [];
+let hull = [];
 
 function draw() {
 
@@ -363,65 +342,32 @@ function draw() {
 
   translate(CENTER_X, CENTER_Y);
 
-  let anim = animations.shift();
-
-  switch(anim[0]) {
-    case 'fuzzyline': {
-      drawLine(anim[1], anim[2], color(45, 255, 45, 100));
-      break;
-    }
-    case 'line': {
-      drawLine(anim[1], anim[2], color(45, 255, 255));
-      break;
-    }
-    case 'setRegion': {
-      animRegions[ anim[1] ] = anim[2];
-      break;
-    }
-    case 'addPoint': {
-      animPoints.push( anim[1] );
-      break;
-    }
-    case 'poly': {
-      drawPath(anim[1], color(255, 45, 45));
-      break;
-    }
-    default: {
-      throw new TypeError('Unknown command ' + anim[0]);
-    }
+  for (let i = 0; i < SAMPLES; i += 1) {
+    drawPoint(points[i]);
   }
 
-  for (let i = 0, maxi = animRegions.length; i < maxi; i += 1) {
-    drawPath(animRegions[i], color(45, 45, 255));
-  }
-
-  for (let i = 0, maxi = animPoints.length; i < maxi; i += 1) {
-    let col = null;
-    let rad = null;
-    if ( i === maxi - 1 && animations.length ) {
-      col = color(255, 45, 45);
-      rad = 25;
+  for (let i = 0, maxi = regions.length; i < maxi; i += 1) {
+    beginShape();
+    for (let j = 0, k = 1, maxj = regions[i].length; j < maxj; j += 1) {
+      drawLine(regions[i][j], regions[i][k], color(45, 45, 255));
+      k += 1;
+      if ( k >= maxj ) {
+        k = 0;
+      }
+      drawPoint(regions[i][j], color(255, 45, 45));
     }
-    drawPoint(animPoints[i], col, rad);
+    endShape();
   }
 
-  if ( animations.length === 0 ) {
-    noLoop();
+  beginShape();
+  for (let i = 0, j = 1, maxi = hull.length; i < maxi; i += 1) {
+    drawLine(hull[i], hull[j], color(45, 255, 45, 100));
+    j += 1;
+    if ( j >= maxi ) {
+      j = 0;
+    }
+    drawPoint(hull[i], color(45, 255, 255));
   }
-
-  // animations.push([ 'fuzzyline', mid.add(vec.mul(100)), mid.add(vec.mul(-100)) ]);
-  // animations.push([ 'line', toAdd[0], toAdd[1] ]);
-  // animations.push([ 'setRegion', 0, [].concat(regions[0]) ]);
-  // animations.push([ 'addPoint', points[0] ]);
-  // animations.push([ 'poly', [].concat(poly) ]);
-
-  // for (let i = 0, maxi = regions.length; i < maxi; i += 1) {
-  //   drawPath(regions[i], color(45, 45, 255));
-  // }
-  // // drawPath(hull);
-
-  // for (let i = 0; i < SAMPLES; i += 1) {
-  //   drawPoint( points[i] );
-  // }
+  endShape();
 
 }
