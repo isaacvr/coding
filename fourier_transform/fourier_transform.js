@@ -1,16 +1,56 @@
 document.title = "Discrete Fourier Transform";
 
-const WIDTH = 1500;
-const HEIGHT = 700;
-// const FRAMES = 0;
-
-const CENTER_X = WIDTH >> 1;
-const CENTER_Y = HEIGHT >> 1;
-
 let btn;
+let plotter;
+let zoomSlider;
+let showCircles;
+let speedSlider;
+
+let path = [];
+let dft = [];
+let spectrum = [];
+let drawDFT = false;
+let time = 0;
+let path1 = [];
+let DT;
 
 function setup() {
-  createCanvas(WIDTH, HEIGHT);
+  // frameRate(30);
+  let c = createCanvas(700, 700);
+
+  let wk = new Worker('./dft.js');
+
+  wk.addEventListener('message', function(e) {
+    // dft = e.data[0];
+    // console.table(dft);
+    dft = [].concat(e.data[0]);
+    DT = e.data[1];
+    path1.length = 0;
+    drawDFT = true;
+    time = 0;
+  }, false);
+
+  c.mouseMoved(() => {
+    if ( mouseIsPressed ) {
+      plotter.zoom(new Complex(0, 0), 1);
+      path.push( plotter.fromMouse(mouseX, mouseY) );
+    }
+  });
+
+  c.mousePressed(() => {
+    path.length = 0;
+    // frameRate(60);
+    drawDFT = false;
+  });
+
+  c.mouseReleased(() => {
+    wk.postMessage(path);
+  });
+
+  createP('Draw some path in the canvas to compute its Fourier Transform.');
+  createP('&nbsp;');
+  createP('Swap between FT and the spectrum, adjust the zoom, the animation speed.');
+
   btn = createButton('Show Spectrum', '0');
   btn.mouseClicked(() => {
     let val = +btn.value();
@@ -24,96 +64,101 @@ function setup() {
     btn.value(1 - val);
   });
 
-  console.log(btn);
-}
+  zoomSlider = createSlider(1, 1000, 1, 0.2);
 
-let prevMousePressed = false;
-let path = [];
-let dft = [];
-let drawDFT = false;
-
-function fourier() {
-
-  dft.length = 0;
-
-  for (let k = 0, N = path.length; k < N; k += 1) {
-    let sum = new Complex(0, 0);
-    for (let n = 0; n < N; n += 1) {
-      let cp = new Complex({
-        arg: -2 * PI * k * n / N,
-        abs: 1
-      });
-      sum = sum.add( path[n].mul(cp) );
+  speedSlider = createSlider(1, 60, 60, 1);
+  speedSlider.mouseMoved(() => {
+    if ( mouseIsPressed ) {
+      frameRate( speedSlider.value() );
     }
-    dft.push({
-      freq: k,
-      amp: sum.abs() / N,
-      phase: sum.arg()
-    });
-  }
-
-}
-
-let time = 0;
-let path1 = [];
-
-function drawArrow(cp1, cp2) {
-
-  let v1 = cp2.sub(cp1);
-  let len = v1.abs() / 20;
-
-  let rotor = new Complex({
-    arg: PI / 6,
-    abs: 1
   });
 
-  let p1 = cp2.sub( v1.mul(rotor).div(10) );
-  let p2 = cp2.sub( v1.div(rotor).div(10) );
+  speedSlider.changed(() => {
+    frameRate( speedSlider.value() );
+  });
 
-  beginShape();
-  fill(255);
-  vertex(cp2.re, cp2.im);
-  vertex(p1.re, p1.im);
-  vertex(p2.re, p2.im);
-  endShape(CLOSE);
+  showCircles = createCheckbox('Show Circles', true);
 
+  showCircles.mouseClicked((e) => { console.log(showCircles.checked()) });
 
+  let center_x = width >> 0;
+  let center_y = height >> 0;
+
+  let f = 1 / 4;
+  let x1 = -center_x * f;
+  let y1 = -center_y * f;
+  let x2 = center_x * (1 - f);
+  let y2 = center_y * (1 - f);
+
+  plotter = new Plotter(x1, y1, x2, y2);
+  // plotter = new Plotter(0, 0, width, height);
+
+  loadXML('twitter.svg', function(data) {
+    let P = svgToPath(data.DOM.querySelector('path').getAttribute('d'));
+    // path = P.map(e => new Complex(e.re * 0.1, e.im * -0.1));
+    path = P;
+
+    let dims = (function() {
+      let minx = Infinity;
+      let miny = Infinity;
+      let maxx = -Infinity;
+      let maxy = -Infinity;
+
+      path.forEach(e => {
+        minx = min(minx, e.re);
+        miny = min(miny, e.im);
+        maxx = max(maxx, e.re);
+        maxy = max(maxy, e.im);
+      });
+
+      return [ minx, miny, maxx, maxy ];
+    }());
+
+    console.log(dims);
+
+    let p1 = new Complex(dims[0], dims[1]);
+    let p2 = new Complex(dims[2], dims[3]);
+
+    let w = abs(p1.re - p2.re);
+    let h = abs(p1.im - p2.im);
+
+    let f = min( 1500 / w, 700 / h );
+
+    w *= f;
+    h *= f;
+
+    c.resize(w, h);
+
+    p1 = p1.sub( new Complex(20, 20) );
+    p2 = p2.add( new Complex(20, 20) );
+    plotter.setLimits(p1, p2);
+
+    wk.postMessage(path);
+
+  }, function() {
+    console.log('ERROR', arguments);
+  });
+
+  // setTimeout(() => {
+  //   c.resize(1500, height);
+  // }, 3000);
+
+  // console.log(c);
+
+}
+
+function isMouseInside() {
+  return !(mouseX < 0 || mouseX > width || mouseY < 0 || mouseY > height);
 }
 
 function draw() {
 
   background(0);
 
-  translate(CENTER_X, CENTER_Y);
-
-  if ( mouseIsPressed ) {
-    if ( !(mouseX < 0 || mouseX > WIDTH || mouseY < 0 || mouseY > HEIGHT) ) {
-      if ( !prevMousePressed ) {
-        path = [];
-        frameRate(60);
-      }
-      path.push( new Complex(mouseX - CENTER_X, mouseY - CENTER_Y) );
-      drawDFT = false;
-    }
-  } else if ( prevMousePressed ) {
-    frameRate(20);
-    fourier();
-    path1.length = 0;
-    drawDFT = true;
-    time = 0;
-  }
-
-  prevMousePressed = mouseIsPressed;
+  plotter.drawAxes();
 
   if ( btn.value() == '0' || !drawDFT ) {
-    beginShape();
-    stroke(180);
-    strokeWeight(3);
-    noFill();
-    for (let i = 0, maxi = path.length; i < maxi; i += 1) {
-      vertex(path[i].re, path[i].im);
-    }
-    endShape();
+    plotter.drawPath(path, color(245, 255, 25), 3);
   }
 
   if (!drawDFT) {
@@ -123,6 +168,8 @@ function draw() {
   if ( btn.value() == '0' ) {
 
     let cp = new Complex(0, 0);
+
+    let elps = [];
 
     for (let i = 0, maxi = dft.length; i < maxi; i += 1) {
       let prev = cp;
@@ -134,54 +181,32 @@ function draw() {
         arg: freq * time + phase
       }));
 
-      stroke(100);
-      strokeWeight(2);
-      noFill();
-      ellipse(prev.re, prev.im, rad * 2);
-      stroke(200);
-      if ( i + 1 === maxi ) {
-        stroke( color(45, 255, 45) );
-        strokeWeight(4);
-      }
-      line(prev.re, prev.im, cp.re, cp.im);
-      drawArrow(prev, cp);
-
-      // stroke(255);
-      // strokeWeight(4);
-      // point(cp.re, cp.im);
+      elps.push([prev, rad, cp]);
 
     }
 
     path1.push(cp);
 
-    endShape();
+    plotter.drawPath(path1, color(255, 45, 45), 4, null, null, (e) => {
+      return e.sub(path[0]).abs() < 1e-4;
+    });
 
-    beginShape();
-    stroke(color(255, 45, 45));
-    strokeWeight(4);
-    noFill();
-    for (let i = 0, maxi = path1.length; i < maxi; i += 1) {
-      vertex(path1[i].re, path1[i].im);
+    for (let i = 0, maxi = elps.length; i < maxi; i += 1) {
+      if ( showCircles.checked() ) {
+        plotter.drawEllipse(elps[i][0], elps[i][1], color(63, 190, 243, 70), 2);
+      }
+      plotter.drawArrow(elps[i][0], elps[i][2]);
     }
-    endShape();
+
+    plotter.zoom(cp, zoomSlider.value());
 
     if ( path1.length > path.length - 10 ) {
       path1.shift();
     }
-
-    let DT = 2 * PI / dft.length;
-
     time += DT;
   } else if ( dft.length > 0 ) {
-    stroke(100);
-    line(-CENTER_X, 0, CENTER_X, 0);
-    beginShape();
-    stroke(255);
-    let stepX = WIDTH / dft.length;
-    for (let i = 0, maxi = dft.length; i < maxi; i += 1) {
-      vertex(i * stepX - CENTER_X, -dft[i].amp);
-    }
-    endShape();
+    plotter.drawX();
+    plotter.drawPath(spectrum, 255, 3);
   }
 
 }

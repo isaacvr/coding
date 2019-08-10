@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Utils Tester</title>
+  </head>
+  <body>
+
+  </body>
+  <script src="p5.min.js"></script>
+  <script src="p5.dom.min.js"></script>
+  <script src="complex.min.js"></script>
+  <script src="utils.js"></script>
+  <script>
+
+    let plotter;
+    let path = [];
+
+    let scaleY = 5;
+    let scaleX = 1 / scaleY;
+
+    let FRAMES = 30;
+
+    let label;
+
+    function setup() {
+      frameRate(FRAMES);
+
+      let c = createCanvas(1500, 700);
+      plotter = new Plotter(-750, 350, 750, -350);
+
+      label = createP();
+      slider = createSlider(1, 100, 1, 0.2);
+      zx = createSlider(-200, 200, 0, 0.2);
+      zy = createSlider(-200, 200, 0, 0.2);
+
+      let ini = -3;
+      let fin = 3;
+      let f = 2;
+      for (let i = ini; i <= fin; i += 0.001) {
+        path.push( new Point(i / scaleX, sin(2 * PI * f * i) * scaleY ) );
+      }
+    }
+
+    let index = 0;
+    let offset = 1.8;
+    let frec = offset;
+    let transform = [];
+    let slider;
+    let zx;
+    let zy;
+
+    function draw() {
+      background(0);
+      plotter.drawAxes();
+
+      plotter.zoom(new Complex(zx.value(), zy.value()), slider.value());
+
+      plotter.drawPath(path.map(e => e.add(new Point(0, 40))), color(255, 45, 45), 5);
+
+      let newPath = path.map(e => {
+        return new Complex({
+          arg: -PI * frec * e.re,
+          abs: e.im * 8
+        });
+      });
+
+      let cm = plotter.averagePoint(newPath);
+
+      // console.log(cm);
+
+      transform.push(new Point(frec * 20 - offset - 750, cm.im));
+
+      plotter.drawPath(newPath, color(45, 45, 255), 5);
+      plotter.drawPath(transform, color(255, 45, 45), 5);
+
+      plotter.drawPoint(cm, color(45, 255, 45));
+
+      label.html('FREQ: ' + frec);
+
+      frec += 0.0005;
+
+      if (frec > 100) {
+        noLoop();
+      }
+
+    }
+  </script>
+</html>
