@@ -1,7 +1,7 @@
 /**
  * @author Isaac Vega Rodriguez          <isaacvega1996@gmail.com>
  *
- * Helper functions for p5.js
+ * Helper functions for p5.js and more
  */
 
 if ( !Complex ) {
@@ -222,6 +222,31 @@ class Plotter {
     endShape(cls);
   }
 
+  drawColoredPath(path, col1, str, col2, close, fn) {
+    let cb = ( typeof fn === 'function' ) ? fn : ( () => false );
+    let len = path.length;
+    let cls = (typeof close === 'undefined' || close === null) ? close : ( close || CLOSE );
+
+    beginShape();
+    strokeWeight(str || 3);
+    if ( typeof col2 === 'undefined' || col2 === null ) {
+      noFill();
+    } else {
+      fill(col2 || color(0, 0, 0, 0));
+    }
+    for (let i = 0; i < len; i += 1) {
+      if ( cb(path[i], i, path) ) {
+        endShape();
+        beginShape();
+      }
+      let newp = this.convertPoint(path[i]);
+      let col = ( typeof col1 === 'function' ) ? col1(path[i], i, path) : col1;
+      vertex(newp.re, newp.im);
+      stroke(col || 255);
+    }
+    endShape(cls);
+  }
+
   drawTriangle(ptA, ptB, ptC, col1, str, col2) {
     this.drawPath([ ptA, ptB, ptC ], col1, str, col2, CLOSE);
   }
@@ -416,10 +441,10 @@ function svgToPath(dValue) {
       pts.push( arguments[i] );
     }
 
-    for (let i = 0; i < 1; i += STEP) {
+    for (let t = 0; t < 1; t += STEP) {
       let fp = new Complex(0, 0);
-      for (let j = 0; j < cant; j += 1) {
-        fp = fp.add( pts[j].mul( c[j] * pow(1 - i, cant - 1 - j) * pow(i, j) ) );
+      for (let i = 0, n = cant - 1; i <= n; i += 1) {
+        fp = fp.add( pts[i].mul( c[i] * pow(1 - t, n - i) * pow(t, i) ) );
       }
       result.push(fp);
     }
@@ -494,7 +519,7 @@ function svgToPath(dValue) {
           var newP = new Complex((pp.isRelativeCommand() ? pp.current.re : 0) + pp.getScalar(), pp.current.im);
           pp.addMarker(newP, pp.current);
           pp.current = newP;
-          ref = lineTo(pp.curernt);
+          ref = lineTo(pp.current);
         }
         break;
       }
@@ -509,57 +534,56 @@ function svgToPath(dValue) {
       }
       case 'c': {
         while (!pp.isCommandOrEnd()) {
-          var curr = pp.current;
-          var p1 = pp.getPoint();
-          var cntrl = pp.getAsControlPoint();
-          var cp = pp.getAsCurrentPoint();
+          let curr = pp.current;
+          let p1 = pp.getPoint();
+          let cntrl = pp.getAsControlPoint();
+          let cp = pp.getAsCurrentPoint();
           pp.addMarker(cp, cntrl, p1);
-          ref = bezierTo(p1, cntrl, cp);
+          ref = bezierTo(curr, p1, cntrl, cp);
         }
         break;
       }
       case 's': {
         while (!pp.isCommandOrEnd()) {
-          var curr = pp.current;
-          var p1 = pp.getReflectedControlPoint();
-          var cntrl = pp.getAsControlPoint();
-          var cp = pp.getAsCurrentPoint();
+          let curr = pp.current;
+          let p1 = pp.getReflectedControlPoint();
+          let cntrl = pp.getAsControlPoint();
+          let cp = pp.getAsCurrentPoint();
           pp.addMarker(cp, cntrl, p1);
-          ref = bezierTo(p1, cntrl, cp);
+          ref = bezierTo(curr, p1, cntrl, cp);
         }
         break;
       }
       case 'q': {
         while (!pp.isCommandOrEnd()) {
-          var curr = pp.current;
-          var cntrl = pp.getAsControlPoint();
-          var cp = pp.getAsCurrentPoint();
+          let curr = pp.current;
+          let cntrl = pp.getAsControlPoint();
+          let cp = pp.getAsCurrentPoint();
           pp.addMarker(cp, cntrl, cntrl);
-          ref = bezierTo(cntrl, cp);
+          ref = bezierTo(curr, cntrl, cp);
         }
         break;
       }
       case 't': {
         while (!pp.isCommandOrEnd()) {
-          var curr = pp.current;
-          var cntrl = pp.getReflectedControlPoint();
+          let curr = pp.current;
+          let cntrl = pp.getReflectedControlPoint();
           pp.control = cntrl;
-          var cp = pp.getAsCurrentPoint();
+          let cp = pp.getAsCurrentPoint();
           pp.addMarker(cp, cntrl, cntrl);
-          ref = bezierTo(cntrl, cp);
+          ref = bezierTo(curr, cntrl, cp);
         }
         break;
       }
       case 'a': {
         while (!pp.isCommandOrEnd()) {
-
-          var curr = pp.current;
-          var rx = pp.getScalar();
-          var ry = pp.getScalar();
-          var xAxisRotation = pp.getScalar() * (PI / 180.0);
-          var largeArcFlag = pp.getScalar();
-          var sweepFlag = pp.getScalar();
-          var cp = pp.getAsCurrentPoint();
+          let curr = pp.current;
+          let rx = pp.getScalar();
+          let ry = pp.getScalar();
+          let xAxisRotation = pp.getScalar() * (PI / 180.0);
+          let largeArcFlag = pp.getScalar();
+          let sweepFlag = pp.getScalar();
+          let cp = pp.getAsCurrentPoint();
 
           var currp = new Complex(
             cos(xAxisRotation) * (curr.re - cp.re) / 2.0 + sin(xAxisRotation) * (curr.im - cp.im) / 2.0, -sin(xAxisRotation) * (curr.re - cp.re) / 2.0 + cos(xAxisRotation) * (curr.im - cp.im) / 2.0
@@ -641,5 +665,61 @@ function svgToPath(dValue) {
   }
 
   return result;
+
+}
+
+class Numeric {
+
+  static integrate(f, a, b, e) {
+    return Numeric.integrateC( function() {
+      return new Complex(f.apply(null, arguments), 0);
+    }, a, b, e).re;
+  }
+
+  static integrateC(f, a, b, e) {
+    /// Romberg's integration
+    let R = [
+      [],
+      []
+    ];
+    let cErr = Infinity; /// Current Error
+    let acc = e || 1e-10;
+    let cr = 0; /// Current R (R[0], R[1])
+
+    let h = b - a;
+
+    R[ 1 - cr ][0] = f(a).add(f(b)).mul(h * 0.5); /// First step
+
+    let max_steps = 20;
+
+    for (let i = 1; i <= max_steps; i += 1) {
+      h /= 2;
+      let c = new Complex(0, 0);
+      let ep = Math.pow(2, (i - 1));
+
+      for (let j = 1; j <= ep; j += 1) {
+        c = c.add( f(a + (j * 2 - 1) * h ) );
+      }
+
+      R[ cr ][0] = c.mul(h).add( R[ 1 - cr ][0].div(2) );
+
+      for (let j = 1; j <= i; j += 1) {
+        let n_k = Math.pow(4, j);
+        R[ cr ][j] = (R[ cr ][j - 1].mul(n_k).sub(R[ 1 - cr ][j - 1])).div(n_k - 1);
+      }
+
+      cErr = R[ 1 - cr ][i - 1].sub(R[ cr ][i] ).abs();
+
+      if (i > 1 && cErr < acc ) {
+        return R[ cr ][i - 1];
+      }
+
+      cr = 1 - cr;
+
+    }
+
+    return R[ 1 - cr ][ max_steps - 1 ];
+
+  }
 
 }

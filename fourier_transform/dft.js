@@ -1,8 +1,19 @@
 importScripts('../complex.min.js');
+importScripts('../utils.js');
 
-addEventListener('message', e => fourier(e.data.map(e1 => new Complex(e1))), false);
+const INI_F = -40;
+const FIN_F = -INI_F;
+const ERR = 1e-3;
+// addEventListener('message', e => dft(e.data.map(e1 => new Complex(e1))), false);
+addEventListener('message', e => {
+  let a = (typeof e.data[1] === 'number') ? e.data[1] : INI_F;
+  let b = (typeof e.data[2] === 'number') ? e.data[2] : FIN_F;
+  let c = (typeof e.data[3] === 'number') ? e.data[3] : ERR;
+  // console.log('MESSAGEEEEE');
+  fourier(e.data[0].map(e1 => new Complex(e1)), a, b, c);
+}, false);
 
-function fourier(path) {
+function dft(path) {
 
   let dft = [];
 
@@ -26,5 +37,28 @@ function fourier(path) {
   }
 
   postMessage([dft, 2 * PI / dft.length]);
+
+}
+
+function fourier(path, ini, fin, err) {
+
+  let N = path.length;
+  const TAU = Math.PI * 2;
+
+  let dft = [];
+
+  for (let f = ini; f <= fin; f += 1) {
+    let Cn = Numeric.integrateC((t) => {
+      let i = Math.round( t * (N - 1) );
+      return path[i].mul( new Complex({ arg: -f * TAU * t, abs: 1 }) );
+    }, 0, 1, err);
+    dft.push({
+      freq: f,
+      amp: Cn.abs(),
+      phase: Cn.arg()
+    });
+  }
+
+  postMessage(dft);
 
 }
