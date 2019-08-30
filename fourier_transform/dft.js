@@ -57,6 +57,7 @@ function fourier(path, ini, fin, err) {
       amp: Cn.abs(),
       phase: Cn.arg()
     });
+    postMessage(`progess ${ (f - ini) * 100 / (fin - ini) }`);
   }
 
   postMessage(dft);

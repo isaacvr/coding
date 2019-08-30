@@ -6,6 +6,7 @@ let btn;
 let plotter;
 let zoomSlider;
 let showCircles;
+let showPath;
 let speedSlider;
 let componentsInput;
 let errorInput;
@@ -20,9 +21,11 @@ let path1T = [];
 let DT;
 
 let wk;
+let loading = null;
 
 function sendFourierData() {
-  // wk.terminate();
+  wk.terminate();
+  initWorker();
   let tot = +componentsInput.value() - 1;
   let mid = tot >> 1;
   let minf = -mid;
@@ -35,23 +38,31 @@ function sendFourierData() {
   wk.postMessage([path, minf, maxf, err]);
 }
 
+function handleMessage(e) {
+  if ( typeof e.data === 'string' ) {
+    loading = +e.data.split(' ')[1];
+    loading = ~~(loading * 100) / 100;
+  } else {
+    dft = e.data[0];
+    dft = [].concat(e.data);
+    path1.length = 0;
+    path1T.length = 0;
+    drawDFT = true;
+    // time = 0;
+    loading = null;
+  }
+}
+
+function initWorker() {
+  wk = new Worker('./dft.js');
+  wk.addEventListener('message', handleMessage, false);
+}
+
 function setup() {
   // frameRate(30);
   let c = createCanvas(1500, 700);
 
-  wk = new Worker('./dft.js');
-
-  wk.addEventListener('message', function(e) {
-    // dft = e.data[0];
-    dft = [].concat(e.data);
-    // console.log(dft);
-    // DT = e.data[1];
-    // DT = 0.1;
-    path1.length = 0;
-    path1T.length = 0;
-    drawDFT = true;
-    time = 0;
-  }, false);
+  initWorker();
 
   c.mouseMoved(() => {
     if ( mouseIsPressed ) {
@@ -67,6 +78,21 @@ function setup() {
   });
 
   c.mouseReleased(sendFourierData);
+
+  let _btn = createButton('Clear axes');
+  _btn.mousePressed(() => {
+    c.resize(1500, 700);
+    let center_x = width >> 0;
+    let center_y = height >> 0;
+
+    let f = 0.5;
+    let x1 = -center_x * f;
+    let y1 = -center_y * f;
+    let x2 = center_x * (1 - f);
+    let y2 = center_y * (1 - f);
+
+    plotter = new Plotter(x1, y1, x2, y2);
+  });
 
   createP('Draw some path in the canvas to compute its Fourier Transform.');
   createP('&nbsp;');
@@ -102,6 +128,7 @@ function setup() {
   }, false);
 
   showCircles = createCheckbox('Show Circles', true);
+  showPath = createCheckbox('Show Path', true);
 
   let calc = createButton('Calc');
 
@@ -177,6 +204,7 @@ function setup() {
     h *= f;
 
     c.resize(w, h);
+    // c.resize(400, 400);
 
     let mid = p1.add(p2).div(2);
     let v1 = p1.sub(mid).mul(1.3);
@@ -184,6 +212,9 @@ function setup() {
 
     p1 = mid.add(v1);
     p2 = mid.add(v2);
+
+    // p1 = new Complex(0, 0);
+    // p2 = new Complex(400, 400);
 
     plotter.setLimits(p1, p2);
 
@@ -220,10 +251,24 @@ function draw() {
 
   background(0);
 
+  if ( loading != null ) {
+    textAlign(CENTER, CENTER);
+    textSize(30);
+    stroke(255);
+    fill(255);
+    text('Loading', 0, 0, width, height);
+    stroke(color(45, 45, 255));
+    fill(color(45, 45, 255));
+    rect(100, height - 200, map(loading, 0, 100, 0, width - 200), 20);
+    return;
+  }
+
   plotter.drawAxes();
 
-  if ( btn.value() == '0' || !drawDFT ) {
-    plotter.drawPath(path, color(245, 255, 25), 3);
+  if ( btn.value() == '0' ) {
+    if ( showPath.checked() || !drawDFT ) {
+      plotter.drawPath(path, color(245, 255, 25), 3);
+    }
   }
 
   if (!drawDFT) {
