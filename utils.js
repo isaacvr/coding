@@ -17,6 +17,25 @@ Point.prototype.angleTo = function(p) {
   return Math.atan2(dif.im, dif.re);
 };
 
+// Point.prototype.angleTo = function(p) {
+//   let arg1 = this.arg();
+//   let arg2 = p.arg();
+//   return ( (arg2 - arg1) % PI + PI ) % PI;
+// };
+
+Point.prototype.dot = function(p) {
+  return p.re * this.re + p.im + this.im;
+};
+
+Point.prototype.unit = function() {
+  let len = this.abs();
+  return this.div(len);
+};
+
+Point.prototype.cross = function(p) {
+  return this.conjugate().mul(p).im;
+};
+
 class Plotter {
 
   constructor(x1, y1, x2, y2) {
@@ -33,6 +52,7 @@ class Plotter {
   }
 
   static cross(v1, v2) {
+    console.warn("Deprecated: Use a.cross(b) instead");
     return v1.conjugate().mul(v2).im;
   }
 
@@ -62,9 +82,44 @@ class Plotter {
       let v1 = region[i].sub(pt1);
       let v2 = region[j].sub(pt1);
 
-      if ( Plotter.cross(vec, v1) * Plotter.cross(vec, v2) <= 0 ) {
+      if ( vec.cross(v1) * vec.cross(v2) <= 0 ) {
         let newP = Plotter.lineIntersection(region[i], region[j], pt1, pt2);
         res.push(newP);
+      }
+
+      j += 1;
+      if ( j >= cant ) {
+        j = 0;
+      }
+    }
+
+    return res;
+
+  }
+
+  static cutPolygon(pt1, pt2, region) {
+
+    let vec = pt2.sub(pt1);
+
+    let res = [];
+
+    let cant = region.length;
+
+    for (let i = 0, j = 1; i < cant; i += 1) {
+
+      let v1 = region[i].sub(pt1);
+      let v2 = region[j].sub(pt1);
+
+      let s1 = vec.cross(v1);
+      let s2 = vec.cross(v2);
+
+      if ( s1 * s2 <= 0 ) {
+        let newP = Plotter.lineIntersection(region[i], region[j], pt1, pt2);
+        res.push(newP);
+      }
+
+      if ( s1 <= 0 ) {
+        res.push( region[i].clone() );
       }
 
       j += 1;
@@ -155,6 +210,18 @@ class Plotter {
     vertex(newPt.re, newPt.im);
   }
 
+  drawText(txt, pt, col, str, fl) {
+    let newPt = this.convertPoint(pt);
+    stroke(col || 255);
+    strokeWeight(str || 2);
+    if ( fl ) {
+      fill( fl );
+    } else {
+      noFill();
+    }
+    text(txt, newPt.re, newPt.im);
+  }
+
   drawSegment(ptA, ptB, col, str) {
     let newPta = this.convertPoint(ptA);
     let newPtb = this.convertPoint(ptB);
@@ -198,18 +265,18 @@ class Plotter {
     ellipse(c.re, c.im, abs(diam.re), abs(diam.im));
   }
 
-  drawPath(path, col1, str, col2, close, fn) {
-    let cb = ( typeof fn === 'function' ) ? fn : ( () => false );
+  drawPath(path, strokeC, strW, fillC, close, shapeFn) {
+    let cb = ( typeof shapeFn === 'function' ) ? shapeFn : ( () => false );
     let len = path.length;
     let cls = (typeof close === 'undefined' || close === null) ? close : ( close || CLOSE );
 
     beginShape();
-    stroke(col1 || 255);
-    strokeWeight(str || 3);
-    if ( typeof col2 === 'undefined' || col2 === null ) {
+    stroke(strokeC || 255);
+    strokeWeight(strW || 3);
+    if ( typeof fillC === 'undefined' || fillC === null ) {
       noFill();
     } else {
-      fill(col2 || color(0, 0, 0, 0));
+      fill(fillC || color(0, 0, 0, 0));
     }
     for (let i = 0; i < len; i += 1) {
       if ( cb(path[i], i, path) ) {
