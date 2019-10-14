@@ -7,10 +7,7 @@ let maxX;
 let filter;
 
 function preload() {
-  song = loadSound('campanella.mp3');
-  // song = loadSound('miraculum.mp3');
-  // song = loadSound('molina1.mp3');
-  // song = loadSound('molina2.mp3');
+  song = loadSound('a.mp3');
 }
 
 function setup() {
