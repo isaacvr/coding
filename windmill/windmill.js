@@ -1,7 +1,7 @@
 document.title = "Windmill Problem";
 
 let PTS;
-const DA = 0.007;
+const DA = 0.003;
 
 let bigRect = [];
 
@@ -108,6 +108,23 @@ function setup() {
   PTS = sld.value();
 
   init();
+
+  let angs = [
+    new Point(10, 0),
+    new Point(10, 10),
+    new Point(0, 10),
+    new Point(-10, 10),
+    new Point(-10, 0),
+    new Point(-10, -10),
+    new Point(0, -10),
+    new Point(10, -10),
+  ];
+
+  for (let i = 0; i < 8; i += 1) {
+    for (let j = 0; j < 8; j += 1) {
+      console.log('%d %d => ', i, j, angs[i].angleTo(angs[ (i + j) & 7 ]) * 180 / Math.PI);
+    }
+  }
 
 }
 

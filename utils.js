@@ -8,20 +8,25 @@ if ( !Complex ) {
   throw new ReferenceError('This library needs Complex class to function.');
 }
 
+if ( !Matrix ) {
+  throw new ReferenceError('This library needs Matrix class to function.');
+}
+
 Point = Complex;
 
 /// Extending Complex class
-Point.prototype.angleTo = function(p) {
-  let cp = new Point(p);
-  let dif = cp.sub(this);
-  return Math.atan2(dif.im, dif.re);
-};
-
 // Point.prototype.angleTo = function(p) {
-//   let arg1 = this.arg();
-//   let arg2 = p.arg();
-//   return ( (arg2 - arg1) % PI + PI ) % PI;
+//   let cp = new Point(p);
+//   let dif = cp.sub(this);
+//   return Math.atan2(dif.im, dif.re);
 // };
+
+Point.prototype.angleTo = function(p) {
+  let arg1 = this.arg();
+  let arg2 = p.arg();
+  return ( arg2 - arg1 + TAU ) % TAU;
+  // return arg2 - arg1;
+};
 
 Point.prototype.dot = function(p) {
   return p.re * this.re + p.im + this.im;
@@ -36,14 +41,63 @@ Point.prototype.cross = function(p) {
   return this.conjugate().mul(p).im;
 };
 
+function types(arr) {
+  let res = [];
+
+  for (let i = 0, maxi = arr.length; i < maxi; i += 1) {
+    if ( Array.isArray(arr[i]) ) {
+      res.push('a');
+    } else switch( typeof arr[i] ) {
+      case 'number':
+      case 'string':
+      case 'object':
+      case 'undefined':
+      case 'function': {
+        res.push( ( typeof arr[i] )[0] );
+        break;
+      }
+      default: {
+        res.push('?');
+        break;
+      }
+    }
+  }
+
+  return res.join('');
+}
+
+function toPoint(mat) {
+  return new Complex(mat.get(0, 0), mat.get(1, 0));
+}
+
+function toMatrix(pt) {
+  return Matrix.fromArray([pt.re, pt.im], [2, 1]);
+}
+
+function clip(v, m, M) {
+  return Math.max(m, Math.min(M, v));
+}
+
 class Plotter {
 
   constructor(x1, y1, x2, y2) {
 
     this.EPS = 1e-4;
     this.zoomFactor = 1;
-    this.zoomCenter = new Complex(0, 0);
-    this.setLimits(new Complex(x1, y1), new Complex(x2, y2));
+    let cx = width >> 1;
+    let cy = height >> 1;
+    this.center = new Complex(cx, cy);
+
+    this.axes = Matrix.Identity(2);
+
+    if ( types([x1, y1, x2, y2]) === 'nnnn' ) {
+      let x = width / (x2 - x1);
+      let y = height / (y2 - y1);
+      this.axes.set(0, 0, x);
+      this.axes.set(1, 1, y);
+    }
+
+    this.non_linear_func = x => x;
 
   }
 
@@ -94,6 +148,26 @@ class Plotter {
     }
 
     return res;
+
+  }
+
+  static haveIntersection(pt1, pt2, region) {
+
+    let vec = pt2.sub(pt1);
+    let cant = region.length;
+    let newReg = region.map(e => e.sub(pt1));
+
+    for (let i = 0, j = 1; j < cant; i += 1, j += 1) {
+
+      let v1 = newReg[i];
+      let v2 = newReg[j];
+
+      if ( vec.cross(v1) * vec.cross(v2) <= 0 ) {
+        return true;
+      }
+    }
+
+    return false;
 
   }
 
@@ -151,49 +225,186 @@ class Plotter {
     return cp.div( Math.max( len, 1 ) );
   }
 
-  setLimits(pA, pB) {
-    this.p1 = pA;
-    this.p2 = pB;
+  static createEllipse(cx, cy, a, b, pts) {
+
+    let sq = Math.sqrt;
+    let cs = Math.cos;
+    let sn = Math.sin;
+
+    let res = [];
+    let cant = pts || 200;
+    let dAng = Math.PI * 2 / cant;
+    let center = new Complex(cx, cy);
+
+    for (let i = 0; i <= cant; i += 1) {
+      let arg = dAng * i;
+      let len = 1 / sq( ( cs(arg) / a ) ** 2 + ( sn(arg) / b ) ** 2 );
+      res.push( center.add( new Complex({ abs: len, arg  }) ) );
+    }
+
+    return res;
+
   }
 
   zoom(pt, f) {
-    this.zoomCenter = pt;
+    // this.zoomCenter = pt;
+    // this.setCenter(pt);
     this.zoomFactor = f;
   }
 
-  drawX() {
-    if ( this.p1.im * this.p2.im <= 0 ) {
-      let y0 = map(0, this.p1.im, this.p2.im, 0, height);
-      line(0, y0, width, y0);
+  setCenter(pt) {
+    this.center = this.convertPoint(pt);
+    // this.center = pt;
+    // this.center.re *= -1;
+  }
+
+  drawVerticalLine(x, col, str) {
+    this.drawLine(new Complex(x, 0), new Complex(x, 1), col, str);
+  }
+
+  drawHorizontalLine(y, col, str) {
+    this.drawLine(new Complex(0, y), new Complex(1, y), col, str);
+  }
+
+  drawAxes(col, str) {
+    this.drawVerticalLine(0, col || 100, str || 2);
+    this.drawHorizontalLine(0, col || 100, str || 2);
+  }
+
+  drawGrid(sx, sy, col, str, highAxes) {
+    let tps = types([sx, sy, col, str, highAxes]);
+
+    if ( tps === 'uuuuu' ) {
+      sx = sy = 1;
+    } else if ( tps === 'nuuuu' )  {
+      col = sx;
+      sx = sy = 1;
+    }
+
+    let spx = ( types([sx]) != 'n' ) ? 1 : sx;
+    let spy = ( types([sy]) != 'n' ) ? 1 : sy;
+
+    let cx = this.convertPoint( new Complex(0, 0) );
+
+    let vx = this.convertPoint( new Complex(spx, 0) ).sub( cx );
+    let vy = this.convertPoint( new Complex(0, spy) ).sub( cx );
+    let vxa = vx.abs();
+    let vya = vy.abs();
+
+    const min_px = 50;
+    const max_px = 150;
+    const min_proj = 50;
+
+    let proj = (v1, v2) => { return Math.abs(v1.cross(v2)) / v2.abs() };
+
+    // console.log(vx, vy);
+
+    let adjustLength = function(v1, v2, len) {
+
+      let fac = 1;
+
+      while ( len > max_px && len / 2 >= min_px ) {
+        len /= 2;
+        fac /= 2;
+      }
+
+      if ( v1.cross(v2) > 1 ) {
+        while ( len < min_px || proj(v1, v2) < min_proj ) {
+          v1 = v1.mul( 2 );
+          len *= 2;
+          fac *= 2;
+        }
+      }
+
+      return fac;
+
+    };
+
+    let ax = adjustLength(vx, vy, vxa);
+    let ay = adjustLength(vy, vx, vya);
+    vx = vx.mul( ax );
+    vy = vy.mul( ay );
+    spx *= ax;
+    spy *= ay;
+
+    // console.log(vx, vy);
+    // console.log(vx, vy, proj(vx, vy), proj(vy, vx));
+
+    let _col = [ ( highAxes ) ? 150 : (col || 100), col || 100];
+    let _str = str || 2;
+    let inc = [ 2, 0 ];
+
+    let region = [
+      new Complex(0, 0),
+      new Complex(0, height),
+      new Complex(width, height),
+      new Complex(width, 0),
+    ];
+
+    let isInside = function(pt1, pt2) {
+      return Plotter.haveIntersection(pt1, pt2, region);
+    };
+
+    let calcX = true;
+    let calcY = true;
+
+    for (let i = 0;; i += 1) {
+      let c1 = false;
+      let c2 = false;
+      let c3 = false;
+      let c4 = false;
+
+      if ( calcX ) {
+        if ( isInside( cx.add( vx.mul(i) ), cx.add( vx.mul(i) ).add(vy) ) ) {
+          this.drawVerticalLine(spx * i, _col[ Math.sign(i) ], _str + inc[ Math.sign(i) ] );
+          c1 = true;
+        }
+        if ( isInside( cx.add( vx.mul(-i - 1) ), cx.add( vx.mul(-i - 1) ).add(vy) ) ) {
+          this.drawVerticalLine(spx * (-i - 1), _col[ Math.sign(i + 1) ], _str );
+          c2 = true;
+        }
+      }
+
+      if ( calcY ) {
+        if ( isInside( cx.add( vy.mul(i) ), cx.add( vy.mul(i) ).add(vx) ) ) {
+          this.drawHorizontalLine(spy * i, _col[ Math.sign(i) ], _str + inc[ Math.sign(i) ] );
+          c3 = true;
+        }
+        if ( isInside( cx.add( vy.mul(-i - 1) ), cx.add( vy.mul(-i - 1) ).add(vx) ) ) {
+          this.drawHorizontalLine(spy * (-i - 1), _col[ Math.sign(i + 1) ], _str);
+          c4 = true;
+        }
+      }
+
+      if ( !c1 && !c2 && !c3 && !c4 ) {
+        break;
+      }
+    }
+
+  }
+
+  applyNonlinearTransform(fn) {
+    if ( types([fn]) === 'f' ) {
+      this.non_linear_func = fn;
     }
   }
 
-  drawY() {
-    if ( this.p1.re * this.p2.re <= 0 ) {
-      let x0 = map(0, this.p1.re, this.p2.re, 0, width);
-      line(x0, 0, x0, height);
-    }
-  }
-
-  drawAxes() {
-    stroke(100);
-    strokeWeight(2);
-    this.drawX();
-    this.drawY();
-  }
-
-  convertPoint(pt) {
-    let newPt = pt.sub(this.zoomCenter).mul(this.zoomFactor).add(this.zoomCenter);
-    let ptx = map(newPt.re, this.p1.re, this.p2.re, 0, width);
-    let pty = map(newPt.im, this.p1.im, this.p2.im, 0, height);
-    return new Complex(ptx, pty);
+  convertPoint(ptRaw) {
+    let pt = this.non_linear_func(ptRaw);
+    let trans = Matrix.fromArray([1, 0, 0, -1], [2, 2]).mul(this.zoomFactor);
+    let pt1 = Matrix.fromArray([pt.re, pt.im], [2, 1]);
+    let cx = Matrix.fromArray([ this.center.re, this.center.im ], [2, 1]);
+    let newPt = toPoint( trans.mul( this.axes.mul( pt1 ) ).add(cx) );
+    return newPt;
   }
 
   fromMouse(x, y) {
-    let newX = map(x, 0, width, this.p1.re, this.p2.re);
-    let newY = map(y, 0, height, this.p1.im, this.p2.im);
-    let newPt = new Complex(newX, newY);
-    return newPt.sub(this.zoomCenter).div(this.zoomFactor).add(this.zoomCenter);
+    let trans = Matrix.fromArray([1, 0, 0, -1], [2, 2]).mul(this.zoomFactor).inv();
+    let cx = Matrix.fromArray([ this.center.re, this.center.im ], [2, 1]);
+    let ptm = Matrix.fromArray([x, y], [2, 1]).sub(cx);
+    let ampt = trans.mul(ptm);
+    let pt = this.axes.inv().mul( ampt );
+    return toPoint( pt );
   }
 
   drawPoint(pt, col, diam) {
@@ -201,6 +412,15 @@ class Plotter {
     stroke(col || 255);
     strokeWeight(diam || 10);
     point(newPt.re, newPt.im);
+  }
+
+  drawPoints(pts, col, diam) {
+    for (let i = 0, maxi = pts.length; i < maxi; i += 1) {
+      let newPt = this.convertPoint(pts[i]);
+      stroke(col || 255);
+      strokeWeight(diam || 10);
+      point(newPt.re, newPt.im);
+    }
   }
 
   drawVertex(pt, col, diam) {
@@ -222,39 +442,91 @@ class Plotter {
     text(txt, newPt.re, newPt.im);
   }
 
-  drawSegment(ptA, ptB, col, str) {
-    let newPta = this.convertPoint(ptA);
-    let newPtb = this.convertPoint(ptB);
+  optSegmentPts(p1, p2) {
+    let pA = this.convertPoint(p1);
+    let pB = this.convertPoint(p2);
+    let len = pA.sub(pB).abs();
+    return Math.floor( len / 15 );
+  }
+
+  drawSegment(ptA, ptB, col, str, pts) {
     let w = (str || 3);
+
     stroke(col || 255);
     strokeWeight(w);
-    line(newPta.re, newPta.im, newPtb.re, newPtb.im);
+
+    let arr = [];
+    let cant = this.optSegmentPts(ptA, ptB);
+    for (let i = 0; i <= cant; i += 1) {
+      let alpha = i / cant;
+      arr.push( ptA.mul( 1 - alpha ).add( ptB.mul(alpha) ) );
+    }
+    this.drawPath(arr, col, str);
   }
 
   drawLine(ptA, ptB, col, str) {
     let newPta = this.convertPoint(ptA);
     let newPtb = this.convertPoint(ptB);
-    let w = (str || 3);
-    stroke(col || 255);
-    strokeWeight(w);
+    // let w = (str || 3);
+    // stroke(col || 255);
+    // strokeWeight(w);
     let pts = Plotter.intersect(newPta, newPtb, [
-      new Complex(0, 0),
-      new Complex(0, height),
-      new Complex(width, height),
-      new Complex(width, 0),
+      new Complex(-width * 3, -height * 3),
+      new Complex(-width * 3, height * 3),
+      new Complex(width * 3, height * 3),
+      new Complex(width * 3, -height * 3),
     ]);
     if ( pts.length > 1 ) {
-      // console.table(pts);
-      line(pts[0].re, pts[0].im, pts[1].re, pts[1].im);
+      let ini = this.fromMouse(pts[0].re, pts[0].im);
+      let fin = this.fromMouse(pts[1].re, pts[1].im);
+      this.drawSegment(ini, fin, col, str, 100);
     }
   }
 
-  drawEllipse(center, rad, col1, str, col2) {
+  optEllipsePts(cx, cy, a, b) {
+    let sq = Math.sqrt;
+    let cs = Math.cos;
+    let sn = Math.sin;
+
+    let lo = 10;
+    let hi = 1000;
+    let mid;
+
+    let center = this.convertPoint( new Complex(cx, cy) );
+
+    const nA = this.convertPoint( new Complex(a, 0) ).sub(center).abs();
+    const nB = this.convertPoint( new Complex(0, b) ).sub(center).abs();
+    const ang1 = 0;
+    const ang2 = Math.PI / 2;
+    const minPx = 10;
+
+    let getLen = function(arg1, arg2) {
+      let len1 = 1 / sq( ( cs(arg1) / nA ) ** 2 + ( sn(arg1) / nB ) ** 2 );
+      let len2 = 1 / sq( ( cs(arg2) / nA ) ** 2 + ( sn(arg2) / nB ) ** 2 );
+      let pt1 = new Complex({ abs: len1, arg: arg1 });
+      let pt2 = new Complex({ abs: len2, arg: arg2 });
+      return pt2.sub(pt1).abs();
+    };
+
+    while ( lo < hi ) {
+      mid = ( hi + lo ) >> 1;
+      let dAng = Math.PI * 2 / mid;
+      let len1 = getLen(ang1, ang1 + dAng);
+      let len2 = getLen(ang2, ang2 + dAng);
+
+      if ( len1 <= minPx && len2 <= minPx ) {
+        hi = mid - 1;
+      } else {
+        lo = mid + 1;
+      }
+    }
+
+    return mid;
+
+  }
+
+  drawEllipse(center, A, B, col1, str, col2) {
     let fl = !(typeof col2 === 'undefined');
-    let c = this.convertPoint(center);
-    let diamP = this.convertPoint(new Complex(rad * 2, rad * 2));
-    let origin = this.convertPoint(new Complex(0, 0));
-    let diam = diamP.sub(origin);
     stroke(col1 || 255);
     strokeWeight(str || 2);
     if ( fl ) {
@@ -262,7 +534,12 @@ class Plotter {
     } else {
       noFill();
     }
-    ellipse(c.re, c.im, abs(diam.re), abs(diam.im));
+    let a = abs(A);
+    let b = abs(B);
+    let pts = this.optEllipsePts(center.re, center.im, a, b);
+    let elps = Plotter.createEllipse(center.re, center.im, a, b, pts);
+
+    this.drawPath(elps, col1, str, col2, CLOSE);
   }
 
   drawPath(path, strokeC, strW, fillC, close, shapeFn) {
@@ -315,13 +592,25 @@ class Plotter {
   }
 
   drawTriangle(ptA, ptB, ptC, col1, str, col2) {
-    this.drawPath([ ptA, ptB, ptC ], col1, str, col2, CLOSE);
+    let cant = 20;
+    let pts = [ ptA, ptB, ptC ];
+    let arr = [];
+
+    for (let i = 0; i < 3; i += 1) {
+      let next = (i + 1) % 3;
+      for (let j = 0; j < cant; j += 1) {
+        let alpha = j / cant;
+        arr.push( pts[i].mul(1 - alpha).add( pts[next].mul(alpha) ) );
+      }
+    }
+
+    this.drawPath(arr, col1, str, col2, CLOSE);
   }
 
   drawArrow(cp1, cp2, col, nrm) {
 
-    let p1 = this.convertPoint(cp1);
-    let p2 = this.convertPoint(cp2);
+    let p1 = cp1;
+    let p2 = cp2;
     let isNorm = Boolean(nrm);
     let v1 = p2.sub(p1);
     let len = ( isNorm ) ? v1.abs() : 1;
@@ -333,22 +622,18 @@ class Plotter {
       abs: 1
     });
 
-    let pA = p2.sub( v1.mul(rotor).div(15) );
-    let pB = p2.sub( v1.div(rotor).div(15) );
+    let sw = clip(len, 3, 5);
+    let factor = map(len, 0, 40, 0, 300);
+    // let factor = 10;
+
+    let pA = p2.sub( v1.mul(rotor).div( factor ) );
+    let pB = p2.sub( v1.div(rotor).div( factor ) );
     let newP2 = pA.add(pB).div(2);
-    let sw = pA.sub(pB).abs() / 10;
 
-    fill(col || 255);
-    stroke(col || 255);
-    strokeWeight(sw);
-    line(p1.re, p1.im, newP2.re, newP2.im);
+    let _col = col || 255;
 
-    beginShape();
-    strokeWeight(1);
-    vertex(p2.re, p2.im);
-    vertex(pA.re, pA.im);
-    vertex(pB.re, pB.im);
-    endShape(CLOSE);
+    this.drawSegment(cp1, newP2, _col, sw, 50);
+    this.drawTriangle(p2, pA, pB, _col, 1, _col);
 
   }
 

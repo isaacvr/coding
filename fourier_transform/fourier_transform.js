@@ -2,6 +2,16 @@ document.title = "Fourier Transform";
 
 const MAX_DT = Math.PI * 1.98;
 
+let trns = function(pt) {
+  let x = pt.re;
+  let y = pt.im;
+  return new Point(x + sin(y), y + cos(x));
+};
+
+let fn = function(pt) {
+  return pt;
+};
+
 let btn;
 let plotter;
 let zoomSlider;
@@ -73,25 +83,22 @@ function setup() {
 
   c.mousePressed(() => {
     path.length = 0;
-    // frameRate(60);
     drawDFT = false;
   });
 
   c.mouseReleased(sendFourierData);
 
+  c.mouseWheel((e) => {
+    // console.log(e);
+    e.preventDefault();
+    plotter.zoomFactor = Math.max(1, plotter.zoomFactor - e.deltaY * 0.5);
+  });
+
   let _btn = createButton('Clear axes');
   _btn.mousePressed(() => {
     c.resize(1500, 700);
-    let center_x = width >> 0;
-    let center_y = height >> 0;
-
-    let f = 0.5;
-    let x1 = -center_x * f;
-    let y1 = -center_y * f;
-    let x2 = center_x * (1 - f);
-    let y2 = center_y * (1 - f);
-
-    plotter = new Plotter(x1, y1, x2, y2);
+    plotter = new Plotter();
+    plotter.zoomFactor = 12;
   });
 
   createP('Draw some path in the canvas to compute its Fourier Transform.');
@@ -111,7 +118,7 @@ function setup() {
     btn.value(1 - val);
   });
 
-  componentsInput = createInput('40', 'number');
+  componentsInput = createInput('4', 'number');
   componentsInput.attribute('min', 1);
   componentsInput.elt.addEventListener('keyup', (e) => {
     if ( keyCode === ENTER ) {
@@ -158,16 +165,8 @@ function setup() {
 
   // showCircles.mouseClicked((e) => { console.log(showCircles.checked()) });
 
-  let center_x = width >> 0;
-  let center_y = height >> 0;
-
-  let f = 0.5;
-  let x1 = -center_x * f;
-  let y1 = -center_y * f;
-  let x2 = center_x * (1 - f);
-  let y2 = center_y * (1 - f);
-
-  plotter = new Plotter(x1, y1, x2, y2);
+  plotter = new Plotter();
+  plotter.zoomFactor = 12;
 
   loadXML('twitter.svg', function(data) {
     let P = svgToPath(data.DOM.querySelector('path').getAttribute('d'));
@@ -204,19 +203,12 @@ function setup() {
     h *= f;
 
     c.resize(w, h);
-    // c.resize(400, 400);
 
     let mid = p1.add(p2).div(2);
-    let v1 = p1.sub(mid).mul(1.3);
-    let v2 = p2.sub(mid).mul(1.3);
 
-    p1 = mid.add(v1);
-    p2 = mid.add(v2);
-
-    // p1 = new Complex(0, 0);
-    // p2 = new Complex(400, 400);
-
-    plotter.setLimits(p1, p2);
+    plotter = new Plotter();
+    plotter.zoomFactor = 12;
+    plotter.setCenter(mid);
 
     sendFourierData();
 
@@ -309,12 +301,12 @@ function draw() {
 
     for (let i = 0, maxi = elps.length; i < maxi; i += 1) {
       if ( showCircles.checked() ) {
-        plotter.drawEllipse(elps[i][0], elps[i][1], color(63, 190, 243, 70), 2);
+        plotter.drawEllipse(elps[i][0], elps[i][1], elps[i][1], color(63, 190, 243, 70), 2);
       }
       plotter.drawArrow(elps[i][0], elps[i][2]);
     }
 
-    plotter.zoom(cp, zoomSlider.value());
+    // plotter.zoom(cp, zoomSlider.value());
 
     while ( shouldShiftPath1() ) {
       path1.shift();

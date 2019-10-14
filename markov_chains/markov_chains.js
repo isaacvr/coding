@@ -18,7 +18,7 @@ function setup() {
   let wk = new Worker('./generate_ngrams.js');
 
   let ignore = 100;
-  let order = 5;
+  let order = 3;
 
   wk.addEventListener('message', function(e) {
     // console.log('RESPONSE: ', e);
@@ -33,10 +33,11 @@ function setup() {
 
     ngrams = e.data;
 
-    let k = random( Object.keys(ngrams) );
+    // let k = random( Object.keys(ngrams) );
     // console.log(k, ngrams[ k ]);
     // console.log( markovIt(500, order) );
     // console.log( markovIt(100) );
+    // createP( markovIt(500, order) );
     createP( markovIt(1) );
 
   }, false);

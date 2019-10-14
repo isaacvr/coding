@@ -1,4 +1,5 @@
 importScripts('../complex.min.js');
+importScripts('../matrix.js');
 importScripts('../utils.js');
 
 const INI_F = -40;
