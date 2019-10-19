@@ -542,6 +542,45 @@ class Plotter {
     this.drawPath(elps, col1, str, col2, CLOSE);
   }
 
+  drawDirectedPath(path, col1, str, col2, close, showTip) {
+    const MAX_DIST = 150;
+    const tipSize = 15;
+    let len = path.length;
+    let dist = 0;
+
+    stroke(col1 || 255);
+    strokeWeight(str || 3);
+    if ( col2 < 0 || typeof col2 === 'undefined' ) {
+      noFill();
+    } else {
+      fill( col2 || 255 );
+    }
+
+    beginShape();
+    for (let i = 0; i < len; i += 1) {
+      let newp = this.convertPoint(path[i]);
+      vertex(newp.re, newp.im);
+    }
+    endShape(close);
+
+    let prevP = new Complex(0, 0);
+
+    for (let i = 0; i < len; i += 1) {
+      let newp = this.convertPoint(path[i]);
+      if ( i > 0 ) {
+        dist += ( prevP.sub(newp).abs() );
+
+        if ( dist >= MAX_DIST ) {
+          this.drawArrowTip(prevP, newp, col1, tipSize);
+          while( dist >= MAX_DIST ) {
+            dist -= MAX_DIST;
+          }
+        }
+      }
+      prevP = newp;
+    }
+  }
+
   drawPath(path, strokeC, strW, fillC, close, shapeFn) {
     let cb = ( typeof shapeFn === 'function' ) ? shapeFn : ( () => false );
     let len = path.length;
@@ -607,6 +646,37 @@ class Plotter {
     this.drawPath(arr, col1, str, col2, CLOSE);
   }
 
+  drawArrowTip(cp1, cp2, col, len) {
+
+    let p1 = this.convertPoint(cp1);
+    let p2 = this.convertPoint(cp2);
+    let v1 = p2.sub(p1);
+
+    v1 = v1.div( v1.abs() );
+
+    let rotor = new Complex({ abs: 1, arg: PI / 8 });
+
+    let v2 = v1.mul(rotor);
+    let v3 = v1.div(rotor);
+
+    v2 = v2.mul( len / v2.abs() );
+    v3 = v3.mul( len / v3.abs() );
+
+    let pA = p2.sub( v2 );
+    let pB = p2.sub( v3 );
+
+    fill(col);
+    stroke(col);
+
+    beginShape();
+    strokeWeight(1);
+    vertex(p2.re, p2.im);
+    vertex(pA.re, pA.im);
+    vertex(pB.re, pB.im);
+    endShape(CLOSE);
+
+  }
+
   drawArrow(cp1, cp2, col, nrm) {
 
     let p1 = cp1;
@@ -623,7 +693,7 @@ class Plotter {
     });
 
     let sw = clip(len, 3, 5);
-    let factor = map(len, 0, 40, 0, 300);
+    let factor = map(len, 0, 50, 0, 200);
     // let factor = 10;
 
     let pA = p2.sub( v1.mul(rotor).div( factor ) );
@@ -634,6 +704,45 @@ class Plotter {
 
     this.drawSegment(cp1, newP2, _col, sw, 50);
     this.drawTriangle(p2, pA, pB, _col, 1, _col);
+
+  }
+
+  drawSimpleArrow(cp1, cp2, col, nrm) {
+
+    let p1 = cp1;
+    let p2 = cp2;
+    let isNorm = Boolean(nrm);
+    let v1 = p2.sub(p1);
+    let len = ( isNorm ) ? v1.abs() : 1;
+
+    v1 = v1.div(len);
+
+    let rotor = new Complex({
+      arg: PI / 8,
+      abs: 1
+    });
+
+    // let sw = clip(len, 3, 5);
+    let factor = map(len, 0, 50, 0, 200);
+    // let factor = 10;
+
+    let pA = p2.sub( v1.mul(rotor).div( factor ) );
+    let pB = p2.sub( v1.div(rotor).div( factor ) );
+    let newP2 = pA.add(pB).div(2);
+
+    let sw = pA.sub(pB).abs() / 10;
+
+    let _col = col || 255;
+
+    this.drawSegment(cp1, newP2, _col, sw, 2);
+
+    fill(_col);
+
+    beginShape();
+    vertex(p2.re, p2.im);
+    vertex(pA.re, pA.im);
+    vertex(pB.re, pB.im);
+    endShape(CLOSE);
 
   }
 
